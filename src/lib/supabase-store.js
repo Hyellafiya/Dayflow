@@ -1,6 +1,15 @@
 
 
 import { randomUUID } from "node:crypto";
+export function addEvent(task, type, message) {
+  task.events ||= [];
+  task.events.push({
+    id: randomUUID(),
+    type,
+    message,
+    at: new Date().toISOString()
+  });
+}
 
 function check(result) {
   if (result.error) {
