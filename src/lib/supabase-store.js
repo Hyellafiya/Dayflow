@@ -1,4 +1,5 @@
 
+
 import { randomUUID } from "node:crypto";
 
 function check(result) {
@@ -21,21 +22,17 @@ async function ensureWorkspace(db, userId) {
 
   const workspaceId = randomUUID();
 
-  check(
-    await db.from("workspaces").insert({
-      id: workspaceId,
-      name: "Personal workspace",
-      owner_id: userId
-    })
-  );
+  check(await db.from("workspaces").insert({
+    id: workspaceId,
+    name: "Personal workspace",
+    owner_id: userId
+  }));
 
-  check(
-    await db.from("workspace_members").insert({
-      workspace_id: workspaceId,
-      user_id: userId,
-      role: "owner"
-    })
-  );
+  check(await db.from("workspace_members").insert({
+    workspace_id: workspaceId,
+    user_id: userId,
+    role: "owner"
+  }));
 
   return workspaceId;
 }
@@ -60,15 +57,15 @@ function mapTask(row, events = []) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     plan: row.plan || [],
-    internalPlan: {
+    internalPlan: row.internal_plan || {
       summary: "Task saved in your Dayflow workspace."
     },
-    result: row.result ?? null,
-    approval: {
+    approval: row.approval || {
       required: false,
       approved: false,
       reason: ""
     },
+    result: row.result ?? null,
     events: events.map(event => ({
       id: event.id,
       type: event.event_type,
@@ -133,6 +130,14 @@ export async function createTask(db, userId, input) {
         description: "Check the outcome before relying on it."
       }
     ],
+    internal_plan: {
+      summary: "Your task has been saved and is ready for review."
+    },
+    approval: {
+      required: false,
+      approved: false,
+      reason: ""
+    },
     result: null,
     created_at: now,
     updated_at: now
@@ -142,15 +147,13 @@ export async function createTask(db, userId, input) {
     await db.from("tasks").insert(row).select("*").single()
   );
 
-  check(
-    await db.from("task_events").insert({
-      task_id: inserted.id,
-      actor_id: userId,
-      event_type: "info",
-      message: "Task created and saved.",
-      metadata: {}
-    })
-  );
+  check(await db.from("task_events").insert({
+    task_id: inserted.id,
+    actor_id: userId,
+    event_type: "info",
+    message: "Task created and saved.",
+    metadata: {}
+  }));
 
   return getTask(db, userId, inserted.id);
 }
@@ -170,6 +173,8 @@ export async function updateTask(db, userId, taskId, updater) {
       .update({
         status: next.status,
         plan: next.plan || [],
+        internal_plan: next.internalPlan || null,
+        approval: next.approval || null,
         result: next.result ?? null,
         updated_at: new Date().toISOString()
       })
@@ -185,15 +190,13 @@ export async function updateTask(db, userId, taskId, updater) {
   const newEvents = next.events.filter(event => !previousIds.has(event.id));
 
   for (const event of newEvents) {
-    check(
-      await db.from("task_events").insert({
-        task_id: taskId,
-        actor_id: userId,
-        event_type: event.type || "info",
-        message: event.message || "Task updated.",
-        metadata: {}
-      })
-    );
+    check(await db.from("task_events").insert({
+      task_id: taskId,
+      actor_id: userId,
+      event_type: event.type || "info",
+      message: event.message || "Task updated.",
+      metadata: {}
+    }));
   }
 
   return getTask(db, userId, taskId);
